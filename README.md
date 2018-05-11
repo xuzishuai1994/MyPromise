@@ -8,3 +8,5 @@
 ## always
 ## resolve
 ## reject
+## catch
+## Promise.all
