@@ -3,15 +3,52 @@ var RESOLVED = "resolved";
 var REJECTED = "rejected";
 
 var Promise = (function (){
-	function Promise(fn){
+	function Promise(fn, isCatch = true){
 		this.state = PENDING;
 		this.doneList = [];
 		this.failList = [];
+		this.e = '';
 		this.fn = fn;
-		this.fn(this.resolve.bind(this), this.reject.bind(this))
+		this. isCatch= isCatch;
+		try {
+			this.fn(this.resolve.bind(this), this.reject.bind(this));
+		} catch (e) {
+			this.e = e;
+			var that = this;
+			setTimeout(function () {
+				if (that.isCatch) {
+					throw that.e;
+				}
+			}, 0)
+		}
+	}
+
+	Promise.all = function (promises) {
+		console.log(promises);
+		return new Promise(function (resolve, reject) {
+			if (Object.prototype.toString.call(promises) !== '[object Array]') {
+				throw new Error('nor a array');
+			}
+			var promiseVals = [];
+			for (var i = 0, len = promises.length; i < len; i++) {
+				(function (i) {
+					promises[i].then(function (val) {
+						promiseVals[i] = val;
+						if (i === (len - 1)) {
+							resolve(promiseVals);
+						}
+					})
+				})(i);
+			}
+		})
 	}
 
 	var p = {
+		catch: function (cb) {
+			this.isCatch = false;
+			cb.call(this, this.e);
+			return new Promise(this.fn, false);
+		},
 		done: function (cb){
 			if(typeof cb == "function")
 				this.doneList.push(cb)
@@ -30,44 +67,43 @@ var Promise = (function (){
 			this.done(cb).fail(cb)
 			return this;
 		},
-		resolve: function(){
-			this.state = RESOLVED;
-			var lists = this.doneList;
-			for(var i = 0, len = lists.length; i<len; i++){
-				lists[0].apply(this, arguments);
-				lists.shift();
+		resolve: function(arg){
+			var that = this;
+			var lists = that.doneList;
+			if (lists.length === 0) {
+				return arg;
 			}
+			setTimeout(function () {
+				that.state = RESOLVED;
+				console.log(lists);
+				for(var i = 0, len = lists.length; i<len; i++){
+					lists[0].call(that, arg);
+					lists.shift();
+				}
+			}, 0);
 			return this;
 		},
-		reject: function(){
-			this.state = REJECTED;
-			var lists = this.failList;
-			for(var i = 0, len = lists.length; i<len; i++){
-				lists[0].apply(this, arguments);
-				lists.shift();
-			}
+		reject: function(arg){
+			var that = this;
+			setTimeout(function () {
+				that.state = RESOLVED;
+				var lists = that.failList;
+				for(var i = 0, len = lists.length; i<len; i++){
+					lists[0].call(that, arg);
+					lists.shift();
+				}
+			}, 0);
 			return this;
 		}
 	}
 	for(var k in p){
-		Promise.prototype[k] = p[k]
+		Promise.prototype[k] = p[k];
+		Promise[k] = p[k];
 	}
+
+	Promise.call(Promise, function () {});
 
 	return Promise;
 })();
 
 function noop(){}
-
-
-
-/*
-
-state: 当前执行状态，有pending、resolved、rejected 3种取值
-done: cb
-fail: errorcb
-then: cb errocb
-always: cb errorcb
-resolve: 将状态更改为resolved,并触发绑定的所有成功的回调函数
-reject: 将状态更改为rejected,并触发绑定的所有失败的回调函数
-
- */
